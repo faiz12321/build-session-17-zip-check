@@ -1,0 +1,27 @@
+name: test
+on: [push, workflow_dispatch]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest -v
+      - run: python make_sample.py
+      - name: Reports on the sample files
+        shell: python
+        run: |
+          import subprocess, sys
+          def run(name):
+              return subprocess.run([sys.executable, "zipcheck.py", "sample/" + name], capture_output=True, text=True)
+          good = run("good.zip")
+          assert good.returncode == 0 and "found no bad file" in good.stdout, good.stdout
+          for name, text in (("damaged.zip", "first bad file is 'notes/b.txt'"), ("unsafe.zip", "contains .."), ("fake.zip", "Not a ZIP file")):
+              out = run(name)
+              assert out.returncode == 1 and text in out.stdout, (name, out.stdout)
+          print("Sample ZIP reports checked.")
