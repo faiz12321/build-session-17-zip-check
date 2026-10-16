@@ -186,5 +186,121 @@ class Sample(Base):
         self.assertEqual(sum(x != y for x, y in zip(a, b)), 1)
 
 
+
+class SafeSetup(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.sample = self.root / 'sample'
+
+    def test_existing_folder_preserves_nested_bytes_and_mtime(self):
+        (self.sample / 'nested').mkdir(parents=True)
+        keep = self.sample / 'nested' / 'keep'
+        keep.write_bytes(b'KEEP')
+        before = keep.read_bytes(), keep.stat().st_mtime_ns
+        with self.assertRaises(FileExistsError):
+            make_sample.make(self.sample)
+        self.assertEqual(before, (keep.read_bytes(), keep.stat().st_mtime_ns))
+
+    def test_existing_file_preserved(self):
+        self.sample.write_bytes(b'KEEP')
+        before = self.sample.read_bytes(), self.sample.stat().st_mtime_ns
+        with self.assertRaises(FileExistsError):
+            make_sample.make(self.sample)
+        self.assertEqual(before, (self.sample.read_bytes(), self.sample.stat().st_mtime_ns))
+
+    def test_repeat_preserves_every_output(self):
+        make_sample.make(self.sample)
+        before = {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.iterdir()}
+        with self.assertRaises(FileExistsError):
+            make_sample.make(self.sample)
+        self.assertEqual(before, {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.iterdir()})
+
+    def test_cli_repeat_preserves_every_output(self):
+        import subprocess, sys
+        script = self.root / 'make_sample.py'
+        shutil.copyfile(Path(make_sample.__file__).resolve(), script)
+        make_sample.make(self.sample)
+        before = {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.iterdir()}
+        result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('sample already exists', result.stderr)
+        self.assertEqual(before, {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.iterdir()})
+
+
+class InputSafety(Base):
+    def test_hardlink_refused_preserves_target(self):
+        target = self.sample / 'good.zip'
+        before = target.read_bytes(), target.stat().st_mtime_ns
+        link = self.dir / 'hard.zip'
+        os.link(target, link)
+        code, out = run(link)
+        self.assertEqual(code, 2)
+        self.assertIn('singly linked', out)
+        self.assertEqual(before, (target.read_bytes(), target.stat().st_mtime_ns))
+
+    def test_directory_refused(self):
+        code, out = run(self.sample)
+        self.assertEqual(code, 2)
+        self.assertIn('regular file', out)
+
+    def test_fifo_refused_without_blocking(self):
+        if not hasattr(os, 'mkfifo'):
+            self.skipTest('Unix named pipes unavailable')
+        import subprocess, sys
+        pipe = self.dir / 'pipe.zip'
+        os.mkfifo(pipe)
+        result = subprocess.run([sys.executable, str(Path(zipcheck.__file__).resolve()), str(pipe)],
+                                capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('regular file', result.stdout)
+
+    def test_existing_and_dangling_file_symlinks_refused(self):
+        target = self.sample / 'good.zip'
+        before = target.read_bytes(), target.stat().st_mtime_ns
+        link = self.dir / 'link.zip'
+        try:
+            link.symlink_to(target)
+        except OSError:
+            self.skipTest('Symlink creation unavailable')
+        code, out = run(link)
+        self.assertEqual(code, 2)
+        self.assertIn('Links/reparse', out)
+        link.unlink()
+        missing = self.dir / 'absent.zip'
+        link.symlink_to(missing)
+        code, out = run(link)
+        self.assertEqual(code, 2)
+        self.assertFalse(missing.exists())
+        self.assertEqual(before, (target.read_bytes(), target.stat().st_mtime_ns))
+
+    def test_parent_directory_symlink_refused(self):
+        link = self.dir / 'linked'
+        try:
+            link.symlink_to(self.sample, target_is_directory=True)
+        except OSError:
+            self.skipTest('Symlink creation unavailable')
+        code, out = run(link / 'good.zip')
+        self.assertEqual(code, 2)
+        self.assertIn('Links/reparse', out)
+
+    def test_parent_traversal_refused(self):
+        path = self.sample / '..' / 'sample' / 'good.zip'
+        code, out = run(path)
+        self.assertEqual(code, 2)
+        self.assertIn('Parent-traversal', out)
+
+    def test_self_loop_symlink_refused(self):
+        link = self.dir / 'loop'
+        try:
+            link.symlink_to(link)
+        except OSError:
+            self.skipTest('Symlink creation unavailable')
+        code, out = run(link)
+        self.assertEqual(code, 2)
+        self.assertIn('Links/reparse', out)
+
+
 if __name__ == "__main__":
     unittest.main()
