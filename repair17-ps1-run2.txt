@@ -1,0 +1,99 @@
+### CMD: python --version
+Python 3.12.10
+### EXIT: 0
+
+### CMD: python make_sample.py
+Made sample/good.zip, unsafe.zip, damaged.zip and fake.zip
+### EXIT: 0
+
+### CMD: python make_sample.py
+Stopped: sample already exists. Nothing was replaced or deleted.
+### EXIT: 1
+
+### CMD: python -c "print(open('sample/fake.zip').read())"
+This is plain text with a .zip name.
+
+### EXIT: 0
+
+### CMD: python zipcheck.py sample/fake.zip
+Name ends with .zip: True
+### EXIT: 0
+
+### CMD: python zipcheck.py sample/good.zip
+Files: 2  Folders: 0
+Declared size when unpacked: 460 bytes. Stored size: 460 bytes.
+  notes/a.txt
+  notes/b.txt
+Python's test found no bad file (it checks each file against its stored checksum).
+Nothing was unpacked or changed.
+### EXIT: 0
+
+### CMD: python zipcheck.py sample/unsafe.zip
+Files: 3  Folders: 0
+Declared size when unpacked: 224 bytes. Stored size: 224 bytes.
+  ../outside.txt
+  /rooted.txt
+  notes/a.txt
+Unusual name: '../outside.txt' contains ..
+Unusual name: '/rooted.txt' starts like an absolute path
+Python's test found no bad file (it checks each file against its stored checksum).
+Do not unpack this unless you know where it came from.
+### EXIT: 1
+
+### CMD: python zipcheck.py sample/damaged.zip
+Files: 2  Folders: 0
+Declared size when unpacked: 460 bytes. Stored size: 460 bytes.
+  notes/a.txt
+  notes/b.txt
+Damaged: the first bad file is 'notes/b.txt'
+Get a fresh copy of the file if you can.
+### EXIT: 1
+
+### CMD: python zipcheck.py sample/fake.zip
+Not a ZIP file, or too damaged to open.
+### EXIT: 1
+
+### CMD: python -m unittest -v
+test_directory_refused (test_zipcheck.InputSafety.test_directory_refused) ... ok
+test_existing_and_dangling_file_symlinks_refused (test_zipcheck.InputSafety.test_existing_and_dangling_file_symlinks_refused) ... ok
+test_fifo_refused_without_blocking (test_zipcheck.InputSafety.test_fifo_refused_without_blocking) ... skipped 'Unix named pipes unavailable'
+test_hardlink_refused_preserves_target (test_zipcheck.InputSafety.test_hardlink_refused_preserves_target) ... ok
+test_parent_directory_symlink_refused (test_zipcheck.InputSafety.test_parent_directory_symlink_refused) ... ok
+test_parent_traversal_refused (test_zipcheck.InputSafety.test_parent_traversal_refused) ... ok
+test_self_loop_symlink_refused (test_zipcheck.InputSafety.test_self_loop_symlink_refused) ... ok
+test_encrypted_flag_skips_test (test_zipcheck.Limits.test_encrypted_flag_skips_test) ... ok
+test_large_declared_size_skips_test (test_zipcheck.Limits.test_large_declared_size_skips_test) ... ok
+test_dotdot (test_zipcheck.OddName.test_dotdot) ... ok
+test_dotdot_backslash (test_zipcheck.OddName.test_dotdot_backslash) ... ok
+test_dotdot_middle (test_zipcheck.OddName.test_dotdot_middle) ... ok
+test_dots_in_name_are_fine (test_zipcheck.OddName.test_dots_in_name_are_fine) ... ok
+test_drive (test_zipcheck.OddName.test_drive) ... ok
+test_plain (test_zipcheck.OddName.test_plain) ... ok
+test_rooted (test_zipcheck.OddName.test_rooted) ... ok
+test_bytes_and_time_unchanged (test_zipcheck.ReadOnly.test_bytes_and_time_unchanged) ... ok
+test_nothing_written_or_unpacked (test_zipcheck.ReadOnly.test_nothing_written_or_unpacked) ... ok
+test_unsafe_names_not_created (test_zipcheck.ReadOnly.test_unsafe_names_not_created) ... ok
+test_compressed_archive (test_zipcheck.Reports.test_compressed_archive) ... ok
+test_damaged (test_zipcheck.Reports.test_damaged) ... ok
+test_empty_archive (test_zipcheck.Reports.test_empty_archive) ... ok
+test_empty_file (test_zipcheck.Reports.test_empty_file) ... ok
+test_fake (test_zipcheck.Reports.test_fake) ... ok
+test_folder_entries_counted (test_zipcheck.Reports.test_folder_entries_counted) ... ok
+test_good (test_zipcheck.Reports.test_good) ... ok
+test_lists_first_ten_only (test_zipcheck.Reports.test_lists_first_ten_only) ... ok
+test_missing_file (test_zipcheck.Reports.test_missing_file) ... ok
+test_truncated (test_zipcheck.Reports.test_truncated) ... ok
+test_unsafe (test_zipcheck.Reports.test_unsafe) ... ok
+test_usage (test_zipcheck.Reports.test_usage) ... ok
+test_cli_repeat_preserves_every_output (test_zipcheck.SafeSetup.test_cli_repeat_preserves_every_output) ... ok
+test_existing_file_preserved (test_zipcheck.SafeSetup.test_existing_file_preserved) ... ok
+test_existing_folder_preserves_nested_bytes_and_mtime (test_zipcheck.SafeSetup.test_existing_folder_preserves_nested_bytes_and_mtime) ... ok
+test_repeat_preserves_every_output (test_zipcheck.SafeSetup.test_repeat_preserves_every_output) ... ok
+test_damaged_differs_by_one_byte (test_zipcheck.Sample.test_damaged_differs_by_one_byte) ... ok
+test_sample_files_exist (test_zipcheck.Sample.test_sample_files_exist) ... ok
+
+----------------------------------------------------------------------
+Ran 37 tests in 0.309s
+
+OK (skipped=1)
+### EXIT: 0
